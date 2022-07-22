@@ -1,0 +1,29 @@
+{
+  "name": "rq",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^1.0.2",
+    "preact": "^10.9.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.3.0",
+    "@tauri-apps/cli": "^1.0.4",
+    "@typescript-eslint/eslint-plugin": "^5.30.7",
+    "@typescript-eslint/parser": "^5.30.7",
+    "eslint": "^8.20.0",
+    "eslint-config-preact": "^1.3.0",
+    "eslint-plugin-react": "^7.30.1",
+    "eslint_d": "^12.2.0",
+    "jest": "^28.1.3",
+    "typescript": "^4.6.4",
+    "vite": "^3.0.0"
+  }
+}
