@@ -1,0 +1,202 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans&display=swap');
+
+body {
+    font-family: 'Open Sans', sans-serif;
+}
+
+.queue-name {
+    box-sizing: border-box;
+    padding: 2px;
+    height: 100%;
+    width: 100%;
+    grid-column: auto / span 100;
+    grid-row: 2 / 5;
+    line-clamp: 3;
+    flex-wrap: wrap;
+    color: white;
+    padding: 5px;
+}
+
+.queue-image-container {
+    display: flex;
+    align-items: center;
+    max-height: 128px;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    grid-column: 1 / 5;
+    grid-row: 1 / 5;
+    background-color: #5959b2;
+    margin: 10px;
+}
+
+.queue-image {
+    object-fit: contain;
+    max-height: 100%;
+    height: 100%;
+    width: 100%;
+    max-width: 100%;
+}
+
+.queue-card {
+    margin-top: 5px;
+    margin-bottom: 5px;
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: repeat(10, auto);
+    background-color: #24247f;
+    display: grid;
+    box-sizing: border-box;
+    justify-items: center;
+    align-items: center;
+
+    &.started {
+        background-color: lime;
+        animation: started 1s linear infinite;
+    }
+}
+
+@keyframes started {
+    50% {
+        background-color: green;
+    }
+    0% {
+        background-color: lime;
+    }
+    100% {
+        background-color: lime;
+    }
+}
+
+.queue-member {
+    box-sizing: border-box;
+    object-fit: contain;
+    max-height: 30px;
+    /* max-height: 100%;
+  max-width: 100%; */
+}
+
+.queue-button {
+    background-color: #5959b2;
+    font-size: 10pt;
+    font-family: sans-serif;
+    color: white;
+    margin: 5px;
+    width: 80%;
+    // border: 2px solid blue;
+    border: none;
+    grid-column: auto / span 4;
+
+    &:hover {
+        background-color: #6969a2;
+    }
+
+    &:active {
+        background-color: #07074c;
+    }
+
+    &.menu {
+        background: url('https://api.iconify.design/mdi/cog.svg') no-repeat center center / contain;
+    }
+
+}
+
+.queue-status {
+
+}
+
+.queue-toolbar {
+    display: flex;
+    grid-row: 5 / 6;
+    width: 100%;
+    grid-column: 1 / -1;
+    justify-content: space-between;
+}
+
+.queue-member-container {
+    min-width: 0;
+}
+
+.queue-members {
+    padding: 10px;
+    grid-column: 1 / 13;
+    grid-row: 6 / end;
+    display: flex;
+    overflow-y: auto;
+    flex-wrap: wrap;
+    justify-self: start;
+}
+
+.titlebar {
+    height: 50px;
+    background: #24247f;
+    user-select: none;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0;
+    margin-bottom: auto;
+}
+
+.titlebar-logo {
+    margin-top: auto;
+    margin-bottom: auto;
+    height: 80%;
+    width: auto;
+}
+
+.titlebar-logo-container {
+    flex-direction: row;
+    display: flex;
+    margin-right: auto;
+    margin-left: 5px;
+}
+
+.titlebar-button {
+    flex-shrink: 1;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    margin: {
+        left: 4px;
+        right: 4px;
+    }
+    width: 24px;
+    height: 100%;
+
+    &#titlebar-minimize {
+        background: url("https://api.iconify.design/mdi/window-minimize.svg?color=white&width=24&height=24")
+            no-repeat center center / contain;
+    }
+
+    &#titlebar-close {
+        background: url("https://api.iconify.design/mdi/window-close.svg?color=white&width=24&height=24")
+            no-repeat center center / contain;
+    }
+
+    &#titlebar-maximize {
+        background: url("https://api.iconify.design/mdi/window-maximize.svg?color=white&width=24&height=24")
+            no-repeat center center / contain;
+    }
+}
+.titlebar-button:hover {
+    background: #5bbec3;
+}
+
+.queue-image-placeholder {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-content: center;
+
+    &::after {
+        content: "Q";
+        font-size: 15vmin;
+        color: #6969a2;
+    }
+}
+
+.queues-container {
+    // margin-top: 50px;
+    width: 100%;
+}
+

@@ -1,5 +1,6 @@
-import { render } from 'preact'
-import { App } from './app'
-import './index.css'
+import { render } from "preact";
+import { App } from "@/components/app";
+import "@/css/index.css";
+import { appWindow } from "@tauri-apps/api/window";
 
-render(<App />, document.getElementById('app') as HTMLElement)
+render(<App />, document.getElementsByTagName("body")[0] as HTMLElement);

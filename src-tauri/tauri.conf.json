@@ -50,6 +50,9 @@
     "security": {
       "csp": null
     },
+    "systemTray": {
+      "iconPath": "icons/icon.png"
+    },
     "updater": {
       "active": false
     },
@@ -61,7 +64,7 @@
         "height": 600,
         "resizable": true,
         "title": "rQ",
-        "width": 300,
+        "width": 400,
         "transparent": true,
         "alwaysOnTop": true,
         "decorations": false
