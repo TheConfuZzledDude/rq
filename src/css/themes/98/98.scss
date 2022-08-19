@@ -46,7 +46,7 @@
 }
 
 .queue-card {
-    @extend .window !optional;
+    @extend .window;
 
     margin-top: 5px;
     margin-bottom: 5px;
@@ -58,10 +58,37 @@
     justify-items: center;
     align-items: center;
 
-    // &.started {
-    //     background-color: lime;
-    //     animation: started 1s linear infinite;
-    // }
+    &.started {
+        animation: spin-the-board 1s linear infinite;
+    }
+}
+
+
+  
+@keyframes spin-the-board {
+    0% { transform: translateX(0); }
+    2% { transform: translateX(5px); }
+    4% { transform: translateX(0); }
+    6% { transform: translateX(-5px); }
+    8% { transform: translateX(0); }
+}
+
+.context-menu {
+    @extend .window;
+
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+
+    li {
+        text-align: start;
+        box-sizing: border-box;
+        width: 100%;
+        padding-top: 1px;
+        padding-bottom: 1px;
+        padding-left: 25px;
+        padding-right: 25px;
+    }
 }
 
 // @keyframes started {
@@ -108,8 +135,9 @@
         padding: 0;
         background: url('https://api.iconify.design/gridicons/dropdown.svg') no-repeat center center / contain;
 
-        &:active {
+        &.active, &:active {
             padding: 0;
+            box-shadow: var(--border-sunken-outer), var(--border-sunken-inner);
         }
     }
 }
@@ -124,6 +152,7 @@
 
 .queue-member-container {
     min-width: 0;
+    margin: 1px;
 }
 
 .queue-members {
@@ -246,15 +275,47 @@
 
     &#titlebar-menu {
         background: #c0c0c0 url('https://api.iconify.design/gridicons/dropdown.svg') no-repeat center center / contain;
+
+        &.active, &:active {
+            padding: 0;
+            box-shadow: var(--border-sunken-outer), var(--border-sunken-inner);
+        }
     }
 }
 
-.new-queue-container {
+.luna {
+    font-weight: bold;
+    display: inline-block;
+
+    &::before {
+        content: "✨";
+    }
+
+    &::after {
+        display: inline-block;
+        box-sizing: border-box;
+        background: url("@/assets/luna.png") no-repeat bottom right/contain;
+        content: "✨";
+        padding-right: 40px;
+        margin-right: 5px;
+        width: 20px;
+        height: 20px;
+        visibility: visible;
+    }
+}
+
+.new-queue-container, .settings-container {
     display: grid;
     grid-template-columns: repeat(2, auto);
 
     input[type="text"] {
         min-width: 250px;
+    }
+    
+    input[type="submit"] {
+        width: 50%;
+        justify-self: center;
+        grid-column: 1 / 3;
     }
 }
 

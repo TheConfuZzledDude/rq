@@ -69,10 +69,12 @@ dependencies = [
  "serde_json",
  "tauri",
  "tauri-build",
+ "tauri-plugin-store",
  "tokio",
  "tokio-stream",
  "tokio-tungstenite",
  "tokio-util",
+ "toml",
  "tracing",
  "tracing-subscriber",
  "tracing-unwrap",
@@ -3331,6 +3333,18 @@ dependencies = [
  "syn",
  "tauri-codegen",
  "tauri-utils",
+]
+
+[[package]]
+name = "tauri-plugin-store"
+version = "0.0.0"
+source = "git+https://github.com/tauri-apps/tauri-plugin-store#ce109ff53b43f036ea39cdc3f7c44d582f910270"
+dependencies = [
+ "log",
+ "serde",
+ "serde_json",
+ "tauri",
+ "thiserror",
 ]
 
 [[package]]

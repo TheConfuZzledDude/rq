@@ -7,10 +7,11 @@
 
 use futures_util::StreamExt;
 use num_traits::FromPrimitive;
-use serde::Serialize;
+
 use tauri::async_runtime::Mutex;
+use tauri_plugin_store::{PluginBuilder, StoreBuilder};
 use tokio::time::{sleep, Instant, Sleep};
-use tokio_util::sync::CancellationToken;
+
 use tracing::log::{debug, warn};
 use tracing::{debug_span, Instrument};
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -20,7 +21,7 @@ use tracing_subscriber::EnvFilter;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::fmt::Display;
-use std::pin::Pin;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -33,10 +34,13 @@ use reqwest::Body;
 use reqwest::{header::USER_AGENT, Method, Url, Version};
 use serde_json::{json, Value};
 
-use tauri::{AppHandle, Manager, CustomMenuItem, SystemTray, SystemTrayMenu,SystemTrayEvent};
+use tauri::{
+    App, AppHandle, CustomMenuItem, Manager, RunEvent, SystemTray, SystemTrayEvent, SystemTrayMenu,
+    WindowBuilder, WindowUrl,
+};
 use tokio::net::TcpStream;
 use tokio::sync::{Notify, RwLock};
-use tokio::{join, pin, select, spawn};
+use tokio::{select, spawn};
 use tokio_tungstenite::tungstenite::handshake::client::{generate_key, Request};
 use tokio_tungstenite::tungstenite::http::request::Parts;
 use tokio_tungstenite::tungstenite::Message as WebsocketMessage;
@@ -44,6 +48,7 @@ use tokio_tungstenite::WebSocketStream;
 
 mod commands;
 mod queue;
+mod settings;
 mod util;
 
 use commands::*;
@@ -62,7 +67,7 @@ impl Display for GenericError<'_> {
 impl Error for GenericError<'_> {}
 
 #[derive(Debug)]
-enum ResponseType {
+enum RequestType {
     ListQueues,
     LeaveQueue,
     JoinQueue,
@@ -78,12 +83,13 @@ enum ResponseType {
 struct State {
     message_number: AtomicU64,
     queues: RwLock<BTreeMap<u64, Queue>>,
-    response_type: RwLock<HashMap<u64, ResponseType>>,
+    response_type: RwLock<HashMap<u64, RequestType>>,
     websocket_tx: Mutex<
         Option<futures_util::stream::SplitSink<WebSocketStream<TcpStream>, WebsocketMessage>>,
     >,
     websocket_rx: Mutex<Option<futures_util::stream::SplitStream<WebSocketStream<TcpStream>>>>,
     reset_keep_alive: Arc<Notify>,
+    cancel_websockets: Arc<Notify>,
 }
 
 fn main() {
@@ -93,17 +99,17 @@ fn main() {
     // for entry in rs {
     //     println!("{:?}", SearchEntry::construct(entry));
     // }
-    console_subscriber::init();
+    // console_subscriber::init();
     // let console_layer = console_subscriber::spawn();
-    // let fmt_layer = tracing_subscriber::fmt::layer()
-    //     // .with_env_filter(EnvFilter::from_default_env())
-    //     .with_span_events(FmtSpan::FULL);
-    //     // .finish();
-    // tracing_subscriber::registry()
-    //     .with(console_layer)
-    //     .with(fmt_layer)
-    //     .with(EnvFilter::from_default_env())
-    //     .init();
+    let fmt_layer = tracing_subscriber::fmt::layer();
+    // .with_env_filter(EnvFilter::from_default_env())
+    // .with_span_events(FmtSpan::FULL);
+    // .finish();
+    tracing_subscriber::registry()
+        // .with(console_layer)
+        .with(fmt_layer)
+        .with(EnvFilter::from_default_env())
+        .init();
 
     let quit = CustomMenuItem::new("quit".to_string(), "Quit");
     let tray_menu = SystemTrayMenu::new().add_item(quit);
@@ -117,40 +123,29 @@ fn main() {
                 size: _,
                 ..
             } => {
-                    app.get_window("main").unwrap().show().unwrap();
-                }
+                app.get_window("main").unwrap().show().unwrap();
+            }
             SystemTrayEvent::RightClick {
                 position: _,
                 size: _,
                 ..
             } => {
-                    println!("system tray received a right click");
-                }
+                println!("system tray received a right click");
+            }
             SystemTrayEvent::DoubleClick {
                 position: _,
                 size: _,
                 ..
-            } => {
+            } => {}
+            SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
+                "quit" => {
+                    std::process::exit(0);
                 }
-            SystemTrayEvent::MenuItemClick { id, .. } => {
-                match id.as_str() {
-                    "quit" => {
-                        std::process::exit(0);
-                    }
-                    _ => {}
-                }
-            }
+                _ => {}
+            },
             _ => {}
         })
         .setup(|app| {
-            // let main_window = app.get_window("main").unwrap();
-
-            // let monitor = main_window.current_monitor()?.unwrap();
-            // main_window.set_position(LogicalPosition::new(
-            //     monitor.size().width - main_window.outer_size()?.width - 20,
-            //     20,
-            // ))?;
-
             let handle = app.handle();
 
             tauri::async_runtime::spawn(async move {
@@ -181,6 +176,8 @@ fn main() {
             delete_queue,
             nag_queue,
             new_queue,
+            fetch_settings,
+            write_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -191,29 +188,21 @@ async fn setup(app: AppHandle) -> Result<(), Box<dyn Error + Sync + Send>> {
         .await
         .inspect_err(|e| warn!("Error when connecting to server: {:#?}", e));
 
-    spawn(list_all_queues(app.clone()));
+    // spawn(list_all_queues(app.clone()));
     spawn(ping(app.clone()));
     spawn(read_messages(app.clone()));
     spawn(keep_alive(app.clone()));
-    // spawn({
-    //     let app = app.clone();
-    //     async move {
-    //         loop {
-    //             sleep(Duration::from_millis(100)).await;
-    //             let window = app.clone().get_window("main").unwrap();
-    //             let m = get_mouse_position(window);
-    //             app.emit_all("mouse_position", m).unwrap();
-    //             println!("{:#?}", m);
-    //         }
-    //     }
-    // });
-
-    debug!("Disconnected");
 
     Ok(())
 }
 
 async fn connect(app: AppHandle) -> Result<(), Box<dyn Error + Sync + Send>> {
+    let settings = fetch_settings().await.unwrap();
+    let user_header = format!(
+        "{};{};{}",
+        settings.username, settings.full_name, settings.email
+    );
+
     debug!("Attempting to initiate connection");
     let client = reqwest::Client::new();
     let negotiate_request = client
@@ -221,7 +210,7 @@ async fn connect(app: AppHandle) -> Result<(), Box<dyn Error + Sync + Send>> {
         .version(Version::HTTP_11)
         .query(&[("clientProtocol", "1.4")])
         .query(&[("connectionData", json!([{"Name": "QHub"}]).to_string())])
-        .header("User", "ZacFre;Zachary Freed;Zachary.Freed@softwire.com")
+        .header("User", user_header.clone())
         .header(
             USER_AGENT,
             "SignalR.Client.Net45/2.2.0.0 (Microsoft Windows NT 6.2.9200.0)",
@@ -247,7 +236,7 @@ async fn connect(app: AppHandle) -> Result<(), Box<dyn Error + Sync + Send>> {
             negotiated.get("ConnectionToken").unwrap(),
         )])
         .query(&[("connectionData", json!([{"Name": "QHub"}]).to_string())])
-        .header("User", "ZacFre;Zachary Freed;Zachary.Freed@softwire.com")
+        .header("User", user_header)
         .header(SEC_WEBSOCKET_KEY, generate_key())
         .header(SEC_WEBSOCKET_VERSION, 13i32)
         .header(HOST, "poolq3.zoo.lan")
@@ -274,6 +263,8 @@ async fn connect(app: AppHandle) -> Result<(), Box<dyn Error + Sync + Send>> {
         *state.websocket_rx.lock().await,
     ) = (Some(websocket_tx), Some(websocket_rx));
 
+    debug!("Connected!");
+
     Ok(())
 }
 
@@ -292,9 +283,11 @@ async fn list_all_queues(app: AppHandle) {
             .ok_or(GenericError("Websocket isn't initialised"))?;
         state.response_type.write().await.insert(
             message_number.load(Ordering::Relaxed),
-            ResponseType::ListQueues,
+            RequestType::ListQueues,
         );
-        websocket
+
+        select!(
+            _ = websocket
             .send(WebsocketMessage::text(
                 json!(
                     {
@@ -305,17 +298,18 @@ async fn list_all_queues(app: AppHandle) {
                     }
                 )
                 .to_string(),
-            ))
-            .await?;
+            )) => (),
+            _ = state.cancel_websockets.notified() => { return });
     };
 }
 
 #[tracing::instrument(skip(app), level = "debug")]
 async fn ping(app: AppHandle) {
     let state = app.state::<State>();
+    let mut interval = tokio::time::interval(tokio::time::Duration::new(5, 0));
     loop {
         let _: Result<(), Box<dyn Error + Sync + Send>> = try {
-            let mut interval = tokio::time::interval(tokio::time::Duration::new(5, 0));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             interval.tick().instrument(debug_span!("Ping timer")).await;
             {
                 let mut websocket = state
@@ -328,9 +322,10 @@ async fn ping(app: AppHandle) {
                     .as_mut()
                     .ok_or(GenericError("Websocket isn't initialised"))?;
 
-                websocket
-                    .send(WebsocketMessage::Ping(vec![1, 3, 3, 7, 4, 2, 0]))
-                    .await?;
+                select!(
+                    _ = websocket.send(WebsocketMessage::Ping(vec![1, 3, 3, 7, 4, 2, 0])) => (),
+                    _ = state.cancel_websockets.notified() => { continue }
+                );
             }
             list_all_queues(app.clone()).await;
         };
@@ -344,6 +339,7 @@ async fn keep_alive(app: AppHandle) {
         select! {
             _ = cancel_token.notified() => {}
             _ = sleep(Duration::from_secs(10)) => {
+                state.cancel_websockets.notify_waiters();
                 let _ = connect(app.clone()).await;
             }
         }
@@ -365,20 +361,21 @@ async fn read_messages(app: AppHandle) {
                 .as_mut()
                 .ok_or(GenericError("Websocket isn't initialised"))?;
 
-            if let Some(message) = websocket.next().await {
-                state.reset_keep_alive.clone().notify_one();
-                let message = message?;
-                match message {
-                    WebsocketMessage::Text(body) => {
-                        parse_message(app.clone(), body.parse().expect("Body not valid json"))
-                            .await;
+            select!(
+                Some(message) = websocket.next() => {
+                    state.reset_keep_alive.clone().notify_waiters();
+                    let message = message?;
+                    match message {
+                        WebsocketMessage::Text(body) => {
+                            parse_message(app.clone(), body.parse().expect("Body not valid json"))
+                                .await;
+                        }
+                        WebsocketMessage::Pong(_) => {}
+                        _ => panic!("Unknown message type"),
                     }
-                    WebsocketMessage::Pong(_) => {}
-                    _ => panic!("Unknown message type"),
-                }
-            } else {
-                break;
-            }
+                },
+                _ = state.cancel_websockets.notified() => continue,
+            )
         };
     }
 }
@@ -386,6 +383,13 @@ async fn read_messages(app: AppHandle) {
 #[tracing::instrument(skip(app, body), level = "debug")]
 async fn parse_message(app: AppHandle, body: Value) {
     let state = app.state::<State>();
+    let settings = fetch_settings().await.unwrap();
+    let current_user = User {
+        full_name: settings.full_name,
+        email: settings.email,
+        username: settings.username,
+    };
+
     if let Some(message_id) = body.get("I") {
         let message_id = &message_id
             .as_str()
@@ -395,8 +399,10 @@ async fn parse_message(app: AppHandle, body: Value) {
 
         let response_types = state.response_type.read().await;
 
+        debug!("Response types: {:?}", response_types);
+
         match response_types[message_id] {
-            ResponseType::ListQueues => {
+            RequestType::ListQueues => {
                 let queues: BTreeMap<u64, Queue> = body["R"]
                     .as_array()
                     .expect("R is not an array")
@@ -408,12 +414,16 @@ async fn parse_message(app: AppHandle, body: Value) {
                         (id, queue)
                     })
                     .collect();
-                *state.queues.write().await = queues.clone();
+
                 app.emit_all(
                     "queues_updated",
-                    serde_json::to_value(queues).expect("Couldn't serialize queues"),
+                    json!({
+                        "queues": queues,
+                        "currentUser": current_user,
+                    }),
                 )
                 .expect("Couldn't emit queue update event");
+                *state.queues.write().await = queues;
             }
             _ => {}
         }
@@ -429,20 +439,27 @@ async fn parse_message(app: AppHandle, body: Value) {
                 .as_str()
                 .expect("Notification type not valid");
             match notification_type {
-                "NewQueue"
-                | "QueueStatusChanged"
-                | "QueueMembershipChanged" => {
+                "NewQueue" | "QueueStatusChanged" | "QueueMembershipChanged" => {
                     debug!("Processing changed queue");
                     let updated_queue = queue_from_object(&notification["A"][0]);
                     let queues = &mut *state.queues.write().await;
                     queues.insert(updated_queue.id, updated_queue);
                     app.emit_all(
                         "queues_updated",
-                        serde_json::to_value(queues).expect("Couldn't serialize queues"),
+                        json!({
+                            "queues": queues,
+                            "currentUser": current_user,
+                        }),
                     )
                     .expect("Couldn't emit queue update event");
                 }
-                "NagQueue" => {}
+                "NagQueue" => {
+                    debug!("Nag arguments {:#?}", notification["A"]);
+                    app.get_window("main")
+                        .expect("Couldn't get main window")
+                        .show()
+                        .expect("Couldn't show window");
+                }
                 "QueueMessageSent" => {}
                 _ => {}
             }
@@ -451,7 +468,10 @@ async fn parse_message(app: AppHandle, body: Value) {
 }
 
 fn queue_from_object(value: &Value) -> Queue {
-    let id = value["Id"].as_u64().expect(&format!("Id {:#?} not a valid number, full queue {:#?}", value["Id"], value));
+    let id = value["Id"].as_u64().expect(&format!(
+        "Id {:#?} not a valid number, full queue {:#?}",
+        value["Id"], value
+    ));
     let members = value["Members"]
         .as_array()
         .expect("Members is not a valid array")
@@ -459,7 +479,9 @@ fn queue_from_object(value: &Value) -> Queue {
         .map(|member| User {
             username: member["UserName"]
                 .as_str()
-                .expect(format!("Username {:#?} not a string", member["UserName"]).as_str())
+                .unwrap_or_else(|| {
+                    panic!("Username {:#?} not a string", member["UserName"].as_str())
+                })
                 .to_owned(),
             full_name: member["FullName"]
                 .as_str()

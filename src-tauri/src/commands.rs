@@ -1,11 +1,15 @@
-use std::{collections::BTreeMap, error::Error, sync::atomic::Ordering};
+use std::{collections::BTreeMap, sync::atomic::Ordering};
 
-use crate::{queue::Queue, ResponseType, State};
+use crate::{connect, queue::Queue, settings::Settings, RequestType, State};
 use futures_util::sink::SinkExt;
 use serde_json::json;
+use tokio::{
+    fs::{create_dir_all, OpenOptions},
+    io::{AsyncReadExt, AsyncWriteExt},
+    select,
+};
 use tokio_tungstenite::tungstenite::Message as WebsocketMessage;
 use tracing::log::{self, debug};
-use tracing_unwrap::ResultExt;
 
 #[tauri::command]
 pub(crate) async fn get_queues(state: tauri::State<'_, State>) -> Result<BTreeMap<u64, Queue>, ()> {
@@ -20,10 +24,11 @@ pub(crate) async fn leave_queue(state: tauri::State<'_, State>, id: u64) -> Resu
 
     state.response_type.write().await.insert(
         message_number.load(Ordering::Relaxed),
-        ResponseType::LeaveQueue,
+        RequestType::LeaveQueue,
     );
 
-    websocket
+    select!(
+    _ = websocket
         .send(WebsocketMessage::text(
             json! {
                 {
@@ -34,9 +39,9 @@ pub(crate) async fn leave_queue(state: tauri::State<'_, State>, id: u64) -> Resu
                 }
             }
             .to_string(),
-        ))
-        .await
-        .expect("Couldn't join queue");
+        )) => { },
+        _ = state.cancel_websockets.notified() => {return Err(())}
+    );
 
     Ok(())
 }
@@ -52,11 +57,12 @@ pub(crate) async fn join_queue(state: tauri::State<'_, State>, id: u64) -> Resul
     debug!("Logging request type");
     state.response_type.write().await.insert(
         message_number.load(Ordering::Relaxed),
-        ResponseType::JoinQueue,
+        RequestType::JoinQueue,
     );
     debug!("Logged request type request type");
 
-    websocket
+    select!(
+    _ = websocket
         .send(WebsocketMessage::text(
             json! {
                     {
@@ -67,16 +73,21 @@ pub(crate) async fn join_queue(state: tauri::State<'_, State>, id: u64) -> Resul
                     }
             }
             .to_string(),
-        ))
-        .await
-        .expect("Couldn't join queue");
+        )) => { },
+        _ = state.cancel_websockets.notified() => {return Err(())}
+    );
+
     debug!("Join request sent!");
     Ok(())
 }
 
 #[tracing::instrument(level = "debug")]
 #[tauri::command]
-pub(crate) async fn message_queue(state: tauri::State<'_, State>, id: u64, content: &str) -> Result<(), ()> {
+pub(crate) async fn message_queue(
+    state: tauri::State<'_, State>,
+    id: u64,
+    content: &str,
+) -> Result<(), ()> {
     debug!("Sending message to queue");
     let mut websocket = state.websocket_tx.lock().await;
     let websocket = websocket.as_mut().ok_or(())?;
@@ -85,24 +96,25 @@ pub(crate) async fn message_queue(state: tauri::State<'_, State>, id: u64, conte
     debug!("Logging request type");
     state.response_type.write().await.insert(
         message_number.load(Ordering::Relaxed),
-        ResponseType::MessageQueue,
+        RequestType::MessageQueue,
     );
     debug!("Logged request type request type");
 
-    websocket
-        .send(WebsocketMessage::text(
-            json! {
-                    {
-                        "I": message_number.fetch_add(1, Ordering::Relaxed),
-                        "H": "QHub",
-                        "M": "MessageQueue",
-                        "A": [id, content]
-                    }
-            }
-            .to_string(),
-        ))
-        .await
-        .expect_or_log("Couldn't send message to queue");
+    select!(
+        _ = websocket
+            .send(WebsocketMessage::text(
+                json! {
+                        {
+                            "I": message_number.fetch_add(1, Ordering::Relaxed),
+                            "H": "QHub",
+                            "M": "MessageQueue",
+                            "A": [id, content]
+                        }
+                }
+                .to_string(),
+            ) ) => {},
+        _ = state.cancel_websockets.notified() => {return Err(())}
+    );
     debug!("Queue message sent!");
     Ok(())
 }
@@ -118,24 +130,25 @@ pub(crate) async fn start_queue(state: tauri::State<'_, State>, id: u64) -> Resu
     debug!("Logging request type");
     state.response_type.write().await.insert(
         message_number.load(Ordering::Relaxed),
-        ResponseType::StartQueue,
+        RequestType::StartQueue,
     );
     debug!("Logged request type request type");
 
-    websocket
-        .send(WebsocketMessage::text(
-            json! {
-                    {
-                        "I": message_number.fetch_add(1, Ordering::Relaxed),
-                        "H": "QHub",
-                        "M": "ActivateQueue",
-                        "A": [id]
-                    }
-            }
-            .to_string(),
-        ))
-        .await
-        .expect_or_log("Couldn't start queue");
+    select!(
+        _ = websocket
+            .send(WebsocketMessage::text(
+                json! {
+                        {
+                            "I": message_number.fetch_add(1, Ordering::Relaxed),
+                            "H": "QHub",
+                            "M": "ActivateQueue",
+                            "A": [id]
+                        }
+                }
+                .to_string(),
+            )) => {},
+        _ = state.cancel_websockets.notified() => {return Err(())}
+    );
     debug!("Queue started");
     Ok(())
 }
@@ -151,11 +164,12 @@ pub(crate) async fn reset_queue(state: tauri::State<'_, State>, id: u64) -> Resu
     debug!("Logging request type");
     state.response_type.write().await.insert(
         message_number.load(Ordering::Relaxed),
-        ResponseType::ResetQueue,
+        RequestType::ResetQueue,
     );
     debug!("Logged request type request type");
 
-    websocket
+    select!(
+        _ = websocket
         .send(WebsocketMessage::text(
             json! {
                     {
@@ -166,9 +180,9 @@ pub(crate) async fn reset_queue(state: tauri::State<'_, State>, id: u64) -> Resu
                     }
             }
             .to_string(),
-        ))
-        .await
-        .expect_or_log("Couldn't reset queue");
+            )) => {},
+        _ = state.cancel_websockets.notified() => {return Err(())}
+    );
     debug!("Queue reset");
     Ok(())
 }
@@ -184,11 +198,12 @@ pub(crate) async fn nag_queue(state: tauri::State<'_, State>, id: u64) -> Result
     debug!("Logging request type");
     state.response_type.write().await.insert(
         message_number.load(Ordering::Relaxed),
-        ResponseType::NagQueue,
+        RequestType::NagQueue,
     );
     debug!("Logged request type request type");
 
-    websocket
+    select!(
+        _ = websocket
         .send(WebsocketMessage::text(
             json! {
                     {
@@ -199,9 +214,9 @@ pub(crate) async fn nag_queue(state: tauri::State<'_, State>, id: u64) -> Result
                     }
             }
             .to_string(),
-        ))
-        .await
-        .expect_or_log("Couldn't nag queue");
+            )) => {},
+        _ = state.cancel_websockets.notified() => { return Err(()) }
+    );
     debug!("Queue nagged");
     Ok(())
 }
@@ -217,11 +232,12 @@ pub(crate) async fn delete_queue(state: tauri::State<'_, State>, id: u64) -> Res
     debug!("Logging request type");
     state.response_type.write().await.insert(
         message_number.load(Ordering::Relaxed),
-        ResponseType::DeleteQueue,
+        RequestType::DeleteQueue,
     );
     debug!("Logged request type request type");
 
-    websocket
+    select!(
+        _ = websocket
         .send(WebsocketMessage::text(
             json! {
                     {
@@ -232,16 +248,20 @@ pub(crate) async fn delete_queue(state: tauri::State<'_, State>, id: u64) -> Res
                     }
             }
             .to_string(),
-        ))
-        .await
-        .expect_or_log("Couldn't delete queue");
+            )) => {},
+        _ = state.cancel_websockets.notified() => {return Err(())}
+    );
     debug!("Queue deleted");
     Ok(())
 }
 
 #[tracing::instrument(level = "debug")]
 #[tauri::command]
-pub(crate) async fn new_queue(state: tauri::State<'_, State>, name: &str, restrict_to_group: Option<&str> ) -> Result<(), ()> {
+pub(crate) async fn new_queue(
+    state: tauri::State<'_, State>,
+    name: &str,
+    restrict_to_group: Option<&str>,
+) -> Result<(), ()> {
     debug!("Starting queue");
     let mut websocket = state.websocket_tx.lock().await;
     let websocket = websocket.as_mut().ok_or(())?;
@@ -250,11 +270,12 @@ pub(crate) async fn new_queue(state: tauri::State<'_, State>, name: &str, restri
     debug!("Logging request type");
     state.response_type.write().await.insert(
         message_number.load(Ordering::Relaxed),
-        ResponseType::NewQueue,
+        RequestType::NewQueue,
     );
     debug!("Logged request type request type");
 
-    websocket
+    select!(
+        _ = websocket
         .send(WebsocketMessage::text(
             json! {
                     {
@@ -265,9 +286,61 @@ pub(crate) async fn new_queue(state: tauri::State<'_, State>, name: &str, restri
                     }
             }
             .to_string(),
-        ))
-        .await
-        .expect_or_log("Couldn't create queue");
+            )) => {},
+        _ = state.cancel_websockets.notified() => {return Err(())}
+    );
     debug!("Queue created");
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn fetch_settings() -> Result<Settings, ()> {
+    let mut config_dir = tauri::api::path::config_dir().expect("Couldn't get config dir");
+    config_dir.push("rq/config.json");
+
+    create_dir_all(config_dir.parent().unwrap()).await.unwrap();
+
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(config_dir)
+        .await
+        .expect("Couldn't open options");
+
+    let mut buffer = String::new();
+    file.read_to_string(&mut buffer).await.unwrap();
+    let settings = serde_json::from_str(&buffer).unwrap();
+
+    Ok(settings)
+}
+
+#[tauri::command]
+pub(crate) async fn write_settings(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, State>,
+    settings: Settings,
+) -> Result<(), ()> {
+    debug!("{:#?}", settings);
+    let mut config_dir = tauri::api::path::config_dir().expect("Couldn't get config dir");
+    config_dir.push("rq/config.toml");
+
+    create_dir_all(config_dir.parent().unwrap()).await.unwrap();
+
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(config_dir)
+        .await
+        .expect("Couldn't open options");
+
+    file.write_all(serde_json::to_string(&settings).unwrap().as_bytes())
+        .await
+        .unwrap();
+
+    state.cancel_websockets.notify_waiters();
+    let _ = connect(app.clone()).await;
+
     Ok(())
 }

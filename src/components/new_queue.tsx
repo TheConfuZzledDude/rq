@@ -26,11 +26,7 @@ export const NewQueue = () => {
 
     return (
         <div ref={mainContentRef} id="app">
-            <div
-                data-tauri-drag-region
-                id="titlebar"
-                class="titlebar"
-            >
+            <div data-tauri-drag-region id="titlebar" class="titlebar">
                 <div class="titlebar-logo-container">
                     <img class="titlebar-logo" />
                 </div>
@@ -47,37 +43,37 @@ export const NewQueue = () => {
                     onClick={appWindow.close}
                 />
             </div>
-        <div class="new-queue-container">
-            <label for="name">Queue Name</label>
-            <input
-                ref={queueNameEl}
-                id="name"
-                type="text"
-                class="new-queue-name"
-            />
-            <label for="restrict-group">Restrict To Group</label>
-            <input
-                ref={restrictToGroupEl}
-                id="restrict-group"
-                type="text"
-                class="new-queue-restrict-group"
-            />
-            <input
-                type="submit"
-                onClick={() => {
-                    queueNameEl.current &&
-                        restrictToGroupEl.current &&
-                        newQueue(
-                            queueNameEl.current.value.trim(),
-                            restrictToGroupEl.current.value.trim() || ""
-                        );
+            <div class="new-queue-container">
+                <label for="name">Queue Name</label>
+                <input
+                    ref={queueNameEl}
+                    id="name"
+                    type="text"
+                    class="new-queue-name"
+                />
+                <label for="restrict-group">Restrict To Group</label>
+                <input
+                    ref={restrictToGroupEl}
+                    id="restrict-group"
+                    type="text"
+                    class="new-queue-restrict-group"
+                />
+                <input
+                    type="submit"
+                    onClick={() => {
+                        queueNameEl.current &&
+                            restrictToGroupEl.current &&
+                            newQueue(
+                                queueNameEl.current.value.trim(),
+                                restrictToGroupEl.current.value.trim() || ""
+                            );
                         appWindow.close();
-                }}
-            >
-                Submit
-            </input>
-        </div>
+                    }}
+                >
+                    Submit
+                </input>
             </div>
+        </div>
     );
 };
 

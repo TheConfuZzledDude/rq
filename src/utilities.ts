@@ -16,6 +16,7 @@ export function getGravatarUrl(user: User): string {
 export function userInQueue(user: User, queue: Queue): boolean {
     return queue.members.some(
         ({ fullName, username, email }) =>
+            console.log(`${fullName} ${email} ${username}`) as unknown ||
             user.fullName == fullName &&
             user.username == username &&
             user.email == email

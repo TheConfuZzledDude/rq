@@ -5,36 +5,43 @@ import { invoke } from "@tauri-apps/api/tauri";
 import { Queue } from "@/data/queue";
 import { User } from "@/data/user";
 import useSize from "@react-hook/size";
-import {
-    appWindow,
-    LogicalSize,
-    PhysicalSize,
-    WebviewWindow,
-} from "@tauri-apps/api/window";
+import { appWindow, PhysicalSize, WebviewWindow } from "@tauri-apps/api/window";
 
 import rqLogo from "icons/128x128.png";
 
 import "@/css/app.css";
 import "@szhsin/react-menu/dist/core.css";
+
 // import "@/css/themes/default_theme.scss";
 import "@/css/themes/98/98.scss";
+
 import {
     ClickEvent,
     ControlledMenu,
     MenuItem,
     useMenuState,
 } from "@szhsin/react-menu";
-import { tauri } from "@tauri-apps/api";
+import { exit } from "@tauri-apps/api/process";
+import { fs } from "@tauri-apps/api";
+import { BaseDirectory } from "@tauri-apps/api/fs";
+
+type Theme = "Win98" | "ClassicQ3" | "Modern";
+interface FetchQueuesResponse {
+    queues: [Queue];
+    currentUser: User;
+    theme: Theme;
+}
 
 export const App = () => {
-    const [queues, setQueues] = useState<[Queue]>();
+    console.log("rerendering app");
+    const [queues, setQueues] = useState<Record<number, Queue>>();
 
-    const currentUser: User = {
-        username: "ZacFre",
-        fullName: "Zachary Freed",
-        email: "Zachary.Freed@softwire.com",
-    };
-
+    const [currentUser, setCurrentUser] = useState<User>({
+        username: "",
+        email: "",
+        fullName: "",
+    });
+    const [theme, setTheme] = useState<Theme>("Modern");
     const [hiddenQueues, setHiddenQueues] = useState(new Set());
 
     const hideQueue = useCallback(
@@ -49,7 +56,7 @@ export const App = () => {
     const mainContentRef = useRef<HTMLDivElement>(null);
     const [width, height] = useSize(mainContentRef);
 
-    const [menuProps, toggleMenu] = useMenuState({ transition: true });
+    const [menuProps, toggleMenu] = useMenuState();
     const contextMenuRef = useRef(null);
 
     useEffect(() => {
@@ -67,21 +74,13 @@ export const App = () => {
         let unlistenQueuesUpdated: (() => void) | null = null;
         // let unlistenMousePosition: (() => void) | null = null;
         async function fetchData() {
-            unlistenQueuesUpdated = await listen<[Queue]>(
+            unlistenQueuesUpdated = await listen<FetchQueuesResponse>(
                 "queues_updated",
-                ({ payload }) => {
-                    setQueues(payload);
+                ({ payload: { queues, currentUser } }) => {
+                    setQueues(queues);
+                    setCurrentUser(currentUser);
                 }
             );
-            // unlistenMousePosition = await listen<{x: number, y:number}>(
-            //     "mouse_position",
-            //     ({payload: {x, y}}) => {
-            //         const elem = document.elementFromPoint(x,y);
-            //         if (elem === null || elem?.id === "app") {
-            //             console.log(WebviewWindow.getByLabel('main'));
-            //         }
-            //     }
-            // )
             await invoke("get_queues");
         }
         fetchData();
@@ -91,18 +90,22 @@ export const App = () => {
         };
     }, []);
 
+    useEffect(() => {
+        const f = async () => {
+            fs.readTextFile("config.json", { dir: BaseDirectory.Config })
+        }
+    }, []);
+
     return (
         <div ref={mainContentRef} id="app">
-            <div
-                data-tauri-drag-region
-                id="titlebar"
-                class="titlebar"
-            >
+            <div data-tauri-drag-region id="titlebar" class="titlebar">
                 <div class="titlebar-logo-container">
                     <img class="titlebar-logo" src={rqLogo} />
                 </div>
                 <div
-                    class="titlebar-button"
+                    class={`titlebar-button ${
+                        menuProps.state === "open" ? "active" : ""
+                    }`}
                     id="titlebar-menu"
                     ref={contextMenuRef}
                     onClick={() => toggleMenu(true)}
@@ -124,36 +127,48 @@ export const App = () => {
                     class="titlebar-button"
                     id="titlebar-close"
                     alt="close"
-                    onClick={appWindow.close}
+                    onClick={appWindow.hide}
                 />
             </div>
             <ControlledMenu
                 {...menuProps}
                 anchorRef={contextMenuRef}
-                menuClassName="window"
+                menuClassName="context-menu"
                 onMouseLeave={() => toggleMenu(false)}
                 onClose={() => toggleMenu(false)}
                 onItemClick={({ value }: ClickEvent) => {
                     switch (value) {
-                        case "new":
-                            {
-                                new WebviewWindow(
-                                    "newQueue",
-                                    {
-                                        url: "new_queue.html",
-                                        decorations: false,
-                                    }
-                                );
-                            }
+                        case "new": {
+                            new WebviewWindow("new_queue", {
+                                url: "new_queue.html",
+                                decorations: false,
+                            });
                             break;
+                        }
+                        case "restore": {
+                            setHiddenQueues(new Set());
+                            break;
+                        }
+                        case "settings": {
+                            new WebviewWindow("settings", {
+                                url: "settings.html",
+                                decorations: false,
+                            });
+                            break;
+                        }
+                        case "exit": {
+                            exit(0);
+                        }
                     }
                 }}
             >
                 <MenuItem value="new">New Queue</MenuItem>
+                <MenuItem value="restore">Restore Hidden Items</MenuItem>
+                <MenuItem value="settings">Settings</MenuItem>
             </ControlledMenu>
             <div class="queues-container">
-                {Object.entries(queues ?? [])
-                    .filter(([, queue]) => !hiddenQueues.has(queue.id))
+                {Object.entries(queues ?? {})
+                    ?.filter(([, queue]) => !hiddenQueues.has(queue.id))
                     .map(([, queue]) => (
                         <QueueCard
                             key={queue.id}
@@ -166,4 +181,3 @@ export const App = () => {
         </div>
     );
 };
-

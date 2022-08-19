@@ -8,8 +8,9 @@ import {
     useMenuState,
 } from "@szhsin/react-menu";
 import { invoke } from "@tauri-apps/api/tauri";
+import { memo } from "preact/compat";
 
-import { useCallback, useRef, useState } from "preact/hooks";
+import { useMemo, useRef, useState } from "preact/hooks";
 
 interface QueueCardProps {
     queue: Queue;
@@ -17,11 +18,11 @@ interface QueueCardProps {
     onHide: (id: number) => void;
 }
 
-export const QueueCard = ({ queue, user, onHide }: QueueCardProps) => {
+export const QueueCard = memo(({ queue, user, onHide }: QueueCardProps) => {
     const name = queue.name;
-    const members = queue.members.map((user) =>
+    const members  = useMemo(() => queue.members.map((user) =>
         getUserImage(user, "queue-member")
-    );
+    ), [queue.members]);
 
     const [showMessages, setShowMessages] = useState(false);
     const inQueue = userInQueue(user, queue);
@@ -30,7 +31,7 @@ export const QueueCard = ({ queue, user, onHide }: QueueCardProps) => {
 
     const contextMenuRef = useRef(null);
     const messageInputRef = useRef<HTMLTextAreaElement>(null);
-    const [menuProps, toggleMenu] = useMenuState({ transition: true });
+    const [menuProps, toggleMenu] = useMenuState();
 
     return (
         <>
@@ -49,7 +50,17 @@ export const QueueCard = ({ queue, user, onHide }: QueueCardProps) => {
                             ? "Joined"
                             : "Open"}
                 </div>
-                <div class="queue-name">{name}</div>
+                <div class="queue-name">
+                    {name
+                        .split(/(luna)/i)
+                        .map((s) =>
+                            s.toLowerCase() === "luna" ? (
+                                <span class="luna">{s}</span>
+                            ) : (
+                                s
+                            )
+                        )}
+                </div>
                 <div class="queue-image-container">
                     {imageUrl ? (
                         <img
@@ -101,14 +112,14 @@ export const QueueCard = ({ queue, user, onHide }: QueueCardProps) => {
                         Hide Queue
                     </button>
                     <button
-                        class="queue-button menu"
+                        class={ `queue-button menu ${ menuProps.state === "open" ? "active" : ""}` }
                         onClick={() => toggleMenu(true)}
                         ref={contextMenuRef}
                     />
                     <ControlledMenu
                         {...menuProps}
                         anchorRef={contextMenuRef}
-                        menuClassName="window"
+                        menuClassName="context-menu"
                         onMouseLeave={() => toggleMenu(false)}
                         onClose={() => toggleMenu(false)}
                         onItemClick={({ value }: ClickEvent) => {
@@ -129,9 +140,9 @@ export const QueueCard = ({ queue, user, onHide }: QueueCardProps) => {
                         }}
                     >
                         {queue.status === "Open" ? (
-                            <MenuItem value="start">"Start Queue"</MenuItem>
+                            <MenuItem value="start">Start Queue</MenuItem>
                         ) : (
-                            <MenuItem value="reset">"Reset Queue"</MenuItem>
+                            <MenuItem value="reset">Reset Queue</MenuItem>
                         )}
                         {queue.status === "Open" && (
                             <MenuItem value="nag">Nag Queue</MenuItem>
@@ -197,7 +208,7 @@ export const QueueCard = ({ queue, user, onHide }: QueueCardProps) => {
             )}
         </>
     );
-};
+});
 
 const leaveQueue = (id: number) => {
     invoke("leave_queue", { id });

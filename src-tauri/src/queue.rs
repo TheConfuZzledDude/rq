@@ -1,7 +1,7 @@
 use num_derive::FromPrimitive;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct User {
     pub(crate) username: String,
@@ -9,14 +9,14 @@ pub(crate) struct User {
     pub(crate) email: String,
 }
 
-#[derive(Serialize, Deserialize, FromPrimitive, Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, FromPrimitive, Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub(crate) enum QueueStatus {
     Open = 0,
     Started = 1,
     Closed = 2,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Queue {
     pub(crate) id: u64,
@@ -27,7 +27,7 @@ pub(crate) struct Queue {
     pub(crate) restrict_to_group: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Message {
     pub(crate) content: String,
