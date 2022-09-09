@@ -2,6 +2,8 @@ import { MD5 } from "crypto-js";
 import { User } from "@/data/user";
 import { Queue } from "@/data/queue";
 
+import {themes, Theme} from "@/data/settings";
+
 import ColorHash from 'color-hash';
 
 export function getGravatarUrl(user: User): string {
@@ -31,3 +33,13 @@ export function getToastImage(queue: Queue): string | undefined {
     }
     return `https://softwire.ontoast.io/hashtags/image/${hashtag}`;
 }
+
+import win98Css from "@/css/themes/98/98.scss?inline"
+import classicQ3Css from "@/css/themes/default_theme.scss?inline"
+
+export const themeCssMap: Record<Theme, string> = {
+    Win98:  win98Css,
+    ClassicQ3: classicQ3Css,
+    Modern: "",
+} as const
+

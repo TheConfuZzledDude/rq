@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e
+
+echo "+cargo fmt --all"
+cargo fmt --all
+
+echo "+cargo check"
+cargo check
+
+echo "+cargo clippy"
+cargo clippy

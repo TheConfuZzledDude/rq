@@ -6,23 +6,19 @@ import "@/css/app.css";
 import "@/css/themes/98/98.scss";
 import useSize from "@react-hook/size";
 
-interface Settings {
-    fullName?: string;
-    username?: string;
-    email?: string;
-    groups?: [string];
-}
+import {Settings, themes} from  "@/data/settings"
 
-export const Settings = () => {
+const SettingsComponent = () => {
     const fullNameEl = useRef<HTMLInputElement>(null);
     const usernameEl = useRef<HTMLInputElement>(null);
     const emailEl = useRef<HTMLInputElement>(null);
     const groupsEl = useRef<HTMLInputElement>(null);
+    const themeEl = useRef<HTMLSelectElement>(null);
 
     const mainContentRef = useRef<HTMLDivElement>(null);
     const [width, height] = useSize(mainContentRef);
 
-    const [settings, setSettings] = useState<Settings>({});
+    const [settings, setSettings] = useState<Settings | undefined>();
 
     useEffect(() => {
         (async () => {
@@ -36,10 +32,8 @@ export const Settings = () => {
     }, [height, width]);
 
     useEffect(() => {
-        invoke<Record<string, string>>("fetch_settings").then(setSettings);
+        invoke<Settings>("fetch_settings").then(setSettings);
     }, []);
-
-    console.log(settings);
 
     return (
         <div ref={mainContentRef} id="app">
@@ -67,7 +61,7 @@ export const Settings = () => {
                     id="full_name"
                     type="text"
                     class="settings-full-name"
-                    value={settings["fullName"]}
+                    value={settings?.["fullName"]}
                 />
                 <label for="username">Username</label>
                 <input
@@ -75,7 +69,7 @@ export const Settings = () => {
                     id="username"
                     type="text"
                     class="settings-username"
-                    value={settings["username"]}
+                    value={settings?.["username"]}
                 />
                 <label for="email">Email</label>
                 <input
@@ -83,7 +77,7 @@ export const Settings = () => {
                     id="email"
                     type="text"
                     class="settings-email"
-                    value={settings["email"]}
+                    value={settings?.["email"]}
                 />
                 <label for="groups">Groups (Comma Separated)</label>
                 <input
@@ -91,8 +85,19 @@ export const Settings = () => {
                     id="groups"
                     type="text"
                     class="settings-groups"
-                    value={settings["groups"]?.join(",")}
+                    value={settings?.["groups"]?.join(",")}
                 />
+                <label for="theme">Theme</label>
+                <select
+                    ref={themeEl}
+                    id="theme"
+                    class="settings-themes"
+                    value={settings?.["theme"] ?? "Modern"}
+                >
+                    {
+                       themes.map(theme => <option key={theme} value={theme}>{theme}</option>)
+                    }
+                </select>
                 <input
                     type="submit"
                     onClick={() => {
@@ -104,6 +109,7 @@ export const Settings = () => {
                                 groups: (groupsEl.current?.value ?? "")
                                     .trim()
                                     .split(","),
+                                theme: themeEl.current?.value ?? "Modern",
                             },
                         });
 
@@ -125,3 +131,5 @@ export const Settings = () => {
         </div>
     );
 };
+export {SettingsComponent as Settings};
+export default SettingsComponent;

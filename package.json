@@ -4,9 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
+    "preinstall": "npx only-allow pnpm",
+    "dev": "pnpm exec vite",
+    "build": "pnpm exec tsc && pnpm exec vite build",
+    "preview": "pnpm exec vite preview",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -25,6 +26,8 @@
     "postcss": "^8.4.14",
     "preact": "^10.9.0",
     "sass": "^1.54.0",
+    "react": "npm:@preact/compat",
+    "react-dom": "npm:@preact/compat",
     "tauri-plugin-store-api": "https://github.com/tauri-apps/tauri-plugin-store#dev"
   },
   "devDependencies": {
