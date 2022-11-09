@@ -29,7 +29,7 @@ import { themeCssMap } from "@/utilities"
 
 interface PollDataResponse {
     queues: [Queue],
-    settings: Settings,
+    config: Settings,
 }
 
 export const App = () => {
@@ -75,14 +75,14 @@ export const App = () => {
         async function fetchData() {
             unlistenQueuesUpdated = await listen<PollDataResponse>(
                 "data_updated",
-                ({ payload: { settings, queues } }) => {
+                ({ payload: { config, queues } }) => {
                     setQueues(queues);
                     setCurrentUser({
-                        email: settings.email,
-                        username: settings.username,
-                        fullName: settings.fullName
+                        email: config.email,
+                        username: config.username,
+                        fullName: config.fullName
                     });
-                    setTheme(settings.theme)
+                    setTheme(config.theme)
                 }
             );
             await invoke("fetch_data");

@@ -4,10 +4,7 @@ use crate::{connect, settings::Settings, RequestType, State};
 use futures_util::sink::SinkExt;
 use serde_json::json;
 use tauri::Manager;
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    select,
-};
+use tokio::select;
 use tokio_tungstenite::tungstenite::Message as WebsocketMessage;
 use tracing::log::debug;
 
@@ -19,15 +16,17 @@ pub(crate) async fn fetch_data(
     let queues = &*state.queues.read().await;
     let config = fetch_settings().await?;
 
-    app_handle.emit_all(
-        "data_updated",
-        json!(
-                {
-                    "queues": queues,
-                    "config": config,
-                }
-        ),
-    );
+    app_handle
+        .emit_all(
+            "data_updated",
+            json!(
+                    {
+                        "queues": queues,
+                        "config": config,
+                    }
+            ),
+        )
+        .unwrap();
 
     Ok(())
 }

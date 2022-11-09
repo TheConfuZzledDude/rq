@@ -16,14 +16,15 @@ pub(crate) struct Settings {
     #[serde(default)]
     pub groups: Vec<String>,
 
+    #[serde(default)]
     pub theme: Theme,
 }
 
 #[derive(Debug, Deserialize, Serialize, Eq, PartialEq, Default)]
 #[non_exhaustive]
 pub(crate) enum Theme {
+    #[default]
     Win98,
     ClassicQ3,
-    #[default]
     Modern,
 }

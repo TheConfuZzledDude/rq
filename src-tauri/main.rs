@@ -18,8 +18,6 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 
 use std::collections::{BTreeMap, HashMap};
-use std::error::Error;
-use std::fmt::Display;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -42,6 +40,8 @@ use tokio_tungstenite::tungstenite::http::request::Parts;
 use tokio_tungstenite::tungstenite::Message as WebsocketMessage;
 use tokio_tungstenite::WebSocketStream;
 
+use anyhow::Result;
+
 mod commands;
 mod queue;
 mod settings;
@@ -49,16 +49,6 @@ mod util;
 
 use commands::*;
 use queue::*;
-
-#[derive(Debug)]
-struct GenericError<'a>(&'a str);
-
-impl Display for GenericError<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-impl Error for GenericError<'_> {}
 
 #[derive(Debug)]
 enum RequestType {
@@ -177,7 +167,7 @@ fn main() {
         .expect("error while running tauri application");
 }
 
-async fn setup(app: AppHandle) -> Result<(), Box<dyn Error + Sync + Send>> {
+async fn setup(app: AppHandle) -> Result<()> {
     let _ = connect(app.clone())
         .await
         .inspect_err(|e| warn!("Error when connecting to server: {:#?}", e));
@@ -190,7 +180,7 @@ async fn setup(app: AppHandle) -> Result<(), Box<dyn Error + Sync + Send>> {
     Ok(())
 }
 
-async fn connect(app: AppHandle) -> Result<(), Box<dyn Error + Sync + Send>> {
+async fn connect(app: AppHandle) -> Result<()> {
     let settings = fetch_settings().await.unwrap();
     let user_header = format!(
         "{};{};{}",
@@ -241,6 +231,7 @@ async fn connect(app: AppHandle) -> Result<(), Box<dyn Error + Sync + Send>> {
             "SignalR.Client.Net45/2.2.0.0 (Microsoft Windows NT 6.2.9200.0)",
         )
         .build()?;
+
     let request_parts: Parts = http::Request::<Body>::try_from(websocket_request)?
         .into_parts()
         .0;
@@ -265,36 +256,36 @@ async fn connect(app: AppHandle) -> Result<(), Box<dyn Error + Sync + Send>> {
 #[tracing::instrument(skip(app), level = "debug")]
 async fn list_all_queues(app: AppHandle) {
     let state = app.state::<State>();
-    let _: Result<(), Box<dyn Error + Sync + Send>> = try {
-        let message_number = &state.message_number;
-        let mut websocket = state
-            .websocket_tx
-            .lock()
-            .instrument(debug_span!("Writing to socket"))
-            .await;
-        let websocket = websocket
-            .as_mut()
-            .ok_or(GenericError("Websocket isn't initialised"))?;
-        state.response_type.write().await.insert(
-            message_number.load(Ordering::Relaxed),
-            RequestType::ListQueues,
-        );
+    let message_number = &state.message_number;
 
-        select!(
-            _ = websocket
-            .send(WebsocketMessage::text(
-                json!(
-                    {
-                        "I": message_number.fetch_add(1, Ordering::Relaxed),
-                        "H": "QHub",
-                        "M": "ListQueues",
-                        "A":[]
-                    }
-                )
-                .to_string(),
-            )) => (),
-            _ = state.cancel_websockets.notified() => { return });
+    let Some(websocket) = &mut *state
+        .websocket_tx
+        .lock()
+        .instrument(debug_span!("Writing to socket"))
+        .await
+    else {
+        return
     };
+
+    state.response_type.write().await.insert(
+        message_number.load(Ordering::Relaxed),
+        RequestType::ListQueues,
+    );
+
+    select!(
+        _ = websocket.send(WebsocketMessage::text(
+            json!(
+                {
+                    "I": message_number.fetch_add(1, Ordering::Relaxed),
+                    "H": "QHub",
+                    "M": "ListQueues",
+                    "A":[]
+                }
+            )
+            .to_string()
+        )) => {},
+        _ = state.cancel_websockets.notified() => {},
+    );
 }
 
 #[tracing::instrument(skip(app), level = "debug")]
@@ -302,27 +293,24 @@ async fn ping(app: AppHandle) {
     let state = app.state::<State>();
     let mut interval = tokio::time::interval(tokio::time::Duration::new(5, 0));
     loop {
-        let _: Result<(), Box<dyn Error + Sync + Send>> = try {
-            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            interval.tick().instrument(debug_span!("Ping timer")).await;
-            {
-                let mut websocket = state
-                    .websocket_tx
-                    .lock()
-                    .instrument(debug_span!("Writing to socket"))
-                    .await;
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        interval.tick().instrument(debug_span!("Ping timer")).await;
+        {
+            let Some(websocket) = &mut *state
+                .websocket_tx
+                .lock()
+                .instrument(debug_span!("Writing to socket"))
+                .await
+            else {
+                return
+            };
 
-                let websocket = websocket
-                    .as_mut()
-                    .ok_or(GenericError("Websocket isn't initialised"))?;
-
-                select!(
-                    _ = websocket.send(WebsocketMessage::Ping(vec![1, 3, 3, 7, 4, 2, 0])) => (),
-                    _ = state.cancel_websockets.notified() => { continue }
-                );
-            }
-            list_all_queues(app.clone()).await;
-        };
+            select!(
+                _ = websocket.send(WebsocketMessage::Ping(vec![1, 3, 3, 7, 4, 2, 0])) => (),
+                _ = state.cancel_websockets.notified() => { continue }
+            );
+        }
+        list_all_queues(app.clone()).await;
     }
 }
 
@@ -344,33 +332,29 @@ async fn keep_alive(app: AppHandle) {
 async fn read_messages(app: AppHandle) {
     let state = app.state::<State>();
     loop {
-        let _: Result<(), Box<dyn Error + Sync + Send>> = try {
-            let mut websocket = state
-                .websocket_rx
-                .lock()
-                .instrument(debug_span!("Writing to socket"))
-                .await;
-
-            let websocket = websocket
-                .as_mut()
-                .ok_or(GenericError("Websocket isn't initialised"))?;
-
-            select!(
-                Some(message) = websocket.next() => {
-                    state.reset_keep_alive.clone().notify_waiters();
-                    let message = message?;
-                    match message {
-                        WebsocketMessage::Text(body) => {
-                            parse_message(app.clone(), body.parse().expect("Body not valid json"))
-                                .await;
-                        }
-                        WebsocketMessage::Pong(_) => {}
-                        _ => panic!("Unknown message type"),
-                    }
-                },
-                _ = state.cancel_websockets.notified() => continue,
-            )
+        let Some(websocket) = &mut *state
+            .websocket_rx
+            .lock()
+            .instrument(debug_span!("Writing to socket"))
+            .await
+        else {
+            return
         };
+
+        select!(
+            Some(Ok(message)) = websocket.next() => {
+                state.reset_keep_alive.clone().notify_waiters();
+                match message {
+                    WebsocketMessage::Text(body) => {
+                        parse_message(app.clone(), body.parse().expect("Body not valid json"))
+                            .await;
+                    }
+                    WebsocketMessage::Pong(_) => {}
+                    _ => panic!("Unknown message type"),
+                }
+            },
+            _ = state.cancel_websockets.notified() => continue,
+        )
     }
 }
 
@@ -408,7 +392,7 @@ async fn parse_message(app: AppHandle, body: Value) {
                     "data_updated",
                     json!({
                         "queues": queues,
-                        "settings": settings
+                        "config": settings
                     }),
                 )
                 .expect("Couldn't emit queue update event");
@@ -419,7 +403,7 @@ async fn parse_message(app: AppHandle, body: Value) {
 
         drop(response_types);
         state.response_type.write().await.remove(message_id);
-    } else if let Some(_) = body.get("C") {
+    } else if body.get("C").is_some() {
         let notifications = body["M"]
             .as_array()
             .expect("Message doesn't contain notifcations");
@@ -437,7 +421,7 @@ async fn parse_message(app: AppHandle, body: Value) {
                         "data_updated",
                         json!({
                             "queues": queues,
-                            "settings": settings,
+                            "config": settings,
                         }),
                     )
                     .expect("Couldn't emit queue update event");
@@ -457,10 +441,8 @@ async fn parse_message(app: AppHandle, body: Value) {
 }
 
 fn queue_from_object(value: &Value) -> Queue {
-    let id = value["Id"].as_u64().expect(&format!(
-        "Id {:#?} not a valid number, full queue {:#?}",
-        value["Id"], value
-    ));
+    let id = value["Id"].as_u64().unwrap_or_else(|| panic!("Id {:#?} not a valid number, full queue {:#?}",
+        value["Id"], value));
     let members = value["Members"]
         .as_array()
         .expect("Members is not a valid array")
