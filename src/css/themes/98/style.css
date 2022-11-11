@@ -155,7 +155,7 @@ input[type="reset"]:not(:disabled):active {
   padding: 2px 11px 0 13px;
 }
 
-@media (not(hover)) {
+@media not hover {
   button:not(:disabled):hover,
   input[type="submit"]:not(:disabled):hover,
   input[type="reset"]:not(:disabled):hover {

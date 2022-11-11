@@ -320,7 +320,11 @@
 }
 
 #app {
+    max-height: 100%;
+    height: fit-content;
     @extend .window;
+    display: flex;
+    flex-direction: column;
 }
 
 .queue-image-placeholder {

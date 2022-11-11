@@ -9,6 +9,7 @@ use futures_util::StreamExt;
 use num_traits::FromPrimitive;
 
 use tauri::async_runtime::Mutex;
+use tauri_egui::EguiPluginBuilder;
 use tokio::time::sleep;
 
 use tracing::log::{debug, warn};
@@ -43,6 +44,7 @@ use tokio_tungstenite::WebSocketStream;
 use anyhow::Result;
 
 mod commands;
+mod new_queue;
 mod queue;
 mod settings;
 mod util;
@@ -132,6 +134,8 @@ fn main() {
         .setup(|app| {
             let handle = app.handle();
 
+            app.wry_plugin(EguiPluginBuilder::new(app.handle()));
+
             tauri::async_runtime::spawn(async move {
                 setup(handle).await.expect("Error in setup");
             });
@@ -162,6 +166,8 @@ fn main() {
             new_queue,
             fetch_settings,
             write_settings,
+            open_settings,
+            open_new_queue,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -417,6 +423,12 @@ async fn parse_message(app: AppHandle, body: Value) {
                     let updated_queue = queue_from_object(&notification["A"][0]);
                     let queues = &mut *state.queues.write().await;
                     queues.insert(updated_queue.id, updated_queue);
+                    if notification_type != "QueueMembershipChanged" {
+                        app.get_window("main")
+                            .expect("Couldn't get main window")
+                            .show()
+                            .expect("Couldn't show window");
+                    }
                     app.emit_all(
                         "data_updated",
                         json!({
@@ -441,8 +453,12 @@ async fn parse_message(app: AppHandle, body: Value) {
 }
 
 fn queue_from_object(value: &Value) -> Queue {
-    let id = value["Id"].as_u64().unwrap_or_else(|| panic!("Id {:#?} not a valid number, full queue {:#?}",
-        value["Id"], value));
+    let id = value["Id"].as_u64().unwrap_or_else(|| {
+        panic!(
+            "Id {:#?} not a valid number, full queue {:#?}",
+            value["Id"], value
+        )
+    });
     let members = value["Members"]
         .as_array()
         .expect("Members is not a valid array")

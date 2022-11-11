@@ -4,7 +4,8 @@
     "beforeBuildCommand": "pnpm run build",
     "beforeDevCommand": "pnpm run dev",
     "devPath": "http://localhost:5173",
-    "distDir": "dist"
+    "distDir": "dist",
+    "withGlobalTauri": true
   },
   "package": {
     "productName": "rq",
@@ -66,7 +67,7 @@
         "title": "rQ",
         "width": 400,
         "transparent": true,
-        "alwaysOnTop": true,
+        "alwaysOnTop": false,
         "decorations": false
       }
     ],

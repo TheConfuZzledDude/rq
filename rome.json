@@ -1,0 +1,30 @@
+{
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "a11y": {
+        "recommended": false
+      },
+      "complexity": {
+        "recommended": true
+      },
+      "correctness": {
+        "recommended": true
+      },
+      "style": {
+        "recommended": true
+      },
+      "security": {
+        "recommended": true
+      },
+      "nursery": {
+        "recommended": true
+      }
+    }
+  },
+  "formatter": {
+    "lineWidth": 120,
+    "indentSize": 2,
+    "indentStyle": "space"
+  }
+}

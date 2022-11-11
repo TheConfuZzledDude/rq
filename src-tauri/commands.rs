@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 
-use crate::{connect, settings::Settings, RequestType, State};
+use crate::{connect, new_queue::NewQueueApp, settings::Settings, RequestType, State};
 use futures_util::sink::SinkExt;
 use serde_json::json;
 use tauri::Manager;
@@ -325,6 +325,22 @@ pub(crate) async fn write_settings(
 
     state.cancel_websockets.notify_waiters();
     let _ = connect(app.clone()).await;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn open_settings(app: tauri::AppHandle) -> Result<(), ()> {
+    let settings = confy::load::<Settings>("rq", None).map_err(|_e| ())?;
+
+    settings.launch(app);
+
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn open_new_queue(app: tauri::AppHandle) -> Result<(), ()> {
+    NewQueueApp::launch(app);
 
     Ok(())
 }

@@ -83,7 +83,7 @@ body {
     width: 80%;
     // border: 2px solid blue;
     border: none;
-    grid-column: auto / span 4;
+    // grid-column: auto / span 4;
 
     &:hover {
         background-color: #6969a2;
@@ -94,13 +94,33 @@ body {
     }
 
     &.menu {
-        background: url('https://api.iconify.design/mdi/cog.svg') no-repeat center center / contain;
+        display: flex;
+        &::after {
+            content: url('https://api.iconify.design/mdi/cog.svg');
+            aspect-ratio: 1/1;
+            height: 16px;
+            width: 16px;
+        }
+
+        justify-content: center;
+        align-items: center;
+
+        width: 24px;
+        aspect-ratio: 1/1;
     }
 
 }
 
 .queue-status {
-
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    grid-row: 1;
+    grid-column: 8 / -1;
+    font-weight: bold;
+    margin-right: 20px;
+    font-size: 120%;
+    color: white;
 }
 
 .queue-toolbar {
@@ -131,6 +151,7 @@ body {
     user-select: none;
     display: flex;
     justify-content: flex-end;
+    align-items: center;
     margin-top: 0;
     margin-bottom: auto;
 }
@@ -147,6 +168,7 @@ body {
     display: flex;
     margin-right: auto;
     margin-left: 5px;
+    height: 100%;
 }
 
 .titlebar-button {
@@ -159,7 +181,7 @@ body {
         right: 4px;
     }
     width: 24px;
-    height: 100%;
+    height: 24px;
 
     &#titlebar-minimize {
         background: url("https://api.iconify.design/mdi/window-minimize.svg?color=white&width=24&height=24")
@@ -175,9 +197,34 @@ body {
         background: url("https://api.iconify.design/mdi/window-maximize.svg?color=white&width=24&height=24")
             no-repeat center center / contain;
     }
+
+    &#titlebar-menu {
+        background: #c0c0c0 url('https://api.iconify.design/gridicons/dropdown.svg') no-repeat center center / contain;
+
+        &.active, &:active {
+            padding: 0;
+            box-shadow: var(--border-sunken-outer), var(--border-sunken-inner);
+        }
+    }
 }
 .titlebar-button:hover {
     background: #5bbec3;
+}
+
+.context-menu {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+
+    li {
+        text-align: start;
+        box-sizing: border-box;
+        width: 100%;
+        padding-top: 1px;
+        padding-bottom: 1px;
+        padding-left: 25px;
+        padding-right: 25px;
+    }
 }
 
 .queue-image-placeholder {
@@ -200,3 +247,47 @@ body {
     width: 100%;
 }
 
+.messages-container {
+    background-color: white;
+    // @extend .tree-view;
+}
+
+.message-box {
+    padding: 2px;
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    border: 1px black solid;
+}
+
+.message-sender-image {
+    height: 25px;
+    margin: 2px;
+    margin-right: 10px;
+    width: auto;
+}
+
+.message-input-container {
+    margin: 4px;
+    display: flex;
+    flex-direction: row;
+}
+
+.message-input{
+    align-content:center;
+    flex-grow: 1;
+    margin: 4px;
+    margin-right: auto;
+    display: flex;
+    flex-direction: row;
+}
+
+.message-submit {
+    height: 24px;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    // height: 100%;
+}
