@@ -36,7 +36,7 @@ export const App = () => {
     email: "",
     fullName: "",
   });
-  const [theme, setTheme] = useState<Theme>("Modern");
+  const [theme, setTheme] = useState<Theme>("Win98");
   const [hiddenQueues, setHiddenQueues] = useState(new Set());
 
   const hideQueue = useCallback(
