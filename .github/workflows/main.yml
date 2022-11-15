@@ -56,7 +56,7 @@ jobs:
     - name: install Rust stable
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: stable
+        toolchain: nightly
     - name: install dependencies (ubuntu only)
       if: matrix.platform == 'ubuntu-20.04'
       run: |
